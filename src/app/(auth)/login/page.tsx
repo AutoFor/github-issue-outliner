@@ -1,8 +1,17 @@
-import { signIn } from "@/auth";  // サーバーサイドのサインイン関数
+import { redirect } from "next/navigation";  // リダイレクト
+import { isDevMode } from "@/lib/auth-mode";  // Dev モード判定
 import { Button } from "@/components/ui/button";  // shadcn ボタン
 import { GitBranch } from "lucide-react";  // アイコン
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // Dev モード: ログイン不要、直接リポジトリ選択へ
+  if (isDevMode()) {
+    redirect("/repos");
+  }
+
+  // Prod モード: OAuth ログインフォーム
+  const { signIn } = await import("@/auth");
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       {/* ログインカード */}
@@ -20,7 +29,8 @@ export default function LoginPage() {
         <form
           action={async () => {
             "use server";
-            await signIn("github", { redirectTo: "/repos" });  // ログイン後リポジトリ選択へ
+            const { signIn } = await import("@/auth");
+            await signIn("github", { redirectTo: "/repos" });
           }}
         >
           <Button type="submit" size="lg" className="w-full gap-2">

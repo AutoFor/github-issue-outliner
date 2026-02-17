@@ -1,12 +1,19 @@
 import { redirect } from "next/navigation";  // サーバーサイドリダイレクト
-import { auth } from "@/auth";  // セッション取得
+import { isDevMode } from "@/lib/auth-mode";  // Dev モード判定
 
 export default async function Home() {
-  const session = await auth();  // 現在のセッションを確認
+  // Dev モード: 常にリポジトリ選択へ
+  if (isDevMode()) {
+    redirect("/repos");
+  }
+
+  // Prod モード: セッションに応じてリダイレクト
+  const { auth } = await import("@/auth");
+  const session = await auth();
 
   if (session) {
-    redirect("/repos");  // ログイン済み → リポジトリ選択へ
+    redirect("/repos");
   } else {
-    redirect("/login");  // 未ログイン → ログインページへ
+    redirect("/login");
   }
 }

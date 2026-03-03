@@ -1,8 +1,7 @@
 "use client";  // クライアントコンポーネント
 
-import { useEffect, useCallback, useRef } from "react";  // React フック
+import { useEffect, useCallback, useRef, useState } from "react";  // React フック
 import { useIssues } from "@/hooks/useIssues";  // Issue 取得
-import { useSubIssues } from "@/hooks/useSubIssues";  // 子 Issue 取得
 import { useMutateIssue } from "@/hooks/useMutateIssue";  // Issue 操作
 import { useTreeStore } from "@/stores/tree-store";  // ツリー状態
 import { useUIStore } from "@/stores/ui-store";  // UI 状態
@@ -13,9 +12,10 @@ import { Breadcrumb } from "./Breadcrumb";  // ブレッドクラム
 import { SortableTree } from "./SortableTree";  // DnD ラッパー
 import { Skeleton } from "@/components/ui/skeleton";  // スケルトン
 import { Button } from "@/components/ui/button";  // ボタン
-import { Plus, Eye, EyeOff, ExternalLink } from "lucide-react";  // アイコン
-import type { GitHubIssue, IssueId } from "@/lib/github/types";  // 型
+import { Plus, Eye, EyeOff, ExternalLink, RefreshCw } from "lucide-react";  // アイコン
+import type { GitHubIssue } from "@/lib/github/types";  // 型
 import Link from "next/link";  // ルーティング
+import { toast } from "sonner";  // 通知
 
 interface Props {
   owner: string;  // リポジトリオーナー
@@ -25,8 +25,8 @@ interface Props {
 
 export function OutlinerRoot({ owner, repo }: Props) {
   const { issues, isLoading, mutate: mutateIssues } = useIssues(owner, repo);  // Issue 取得
+  const [isRefreshing, setIsRefreshing] = useState(false);  // 手動更新中
   const {
-    tree,
     flatItems,
     collapsedIds,
     zoomId,
@@ -42,8 +42,11 @@ export function OutlinerRoot({ owner, repo }: Props) {
   const loadedParentsRef = useRef<Set<number>>(new Set());
 
   /** Issue リストからツリーを構築 */
-  const rebuildTree = useCallback(() => {
-    if (issues.length === 0) return;
+  const rebuildTree = useCallback((sourceIssues: GitHubIssue[] = issues) => {
+    if (sourceIssues.length === 0) {
+      setTree([]);
+      return;
+    }
 
     // ルート Issue（sub_issues_summary を持つが、どの子にも含まれていないもの）を特定
     const childIds = new Set<number>();
@@ -53,7 +56,7 @@ export function OutlinerRoot({ owner, repo }: Props) {
       }
     }
 
-    const rootIssues = issues.filter((i) => !childIds.has(i.id));
+    const rootIssues = sourceIssues.filter((i) => !childIds.has(i.id));
     const builtTree = buildTree(rootIssues, childrenMapRef.current, collapsedIds);
     setTree(builtTree);
   }, [issues, collapsedIds, setTree]);
@@ -65,7 +68,11 @@ export function OutlinerRoot({ owner, repo }: Props) {
 
   /** 子 Issue を遅延ロード */
   const loadSubIssues = useCallback(
-    async (issueNumber: number) => {
+    async (
+      issueNumber: number,
+      sourceIssues: GitHubIssue[] = issues,
+      options?: { propagateError?: boolean }
+    ) => {
       if (loadedParentsRef.current.has(issueNumber)) return;  // ロード済み
       loadedParentsRef.current.add(issueNumber);
 
@@ -78,24 +85,27 @@ export function OutlinerRoot({ owner, repo }: Props) {
           // 子 Issue のさらに子もロード
           for (const sub of subIssues) {
             if (sub.sub_issues_summary && sub.sub_issues_summary.total > 0) {
-              await loadSubIssues(sub.number);
+              await loadSubIssues(sub.number, sourceIssues, options);
             }
           }
 
-          rebuildTree();
+          rebuildTree(sourceIssues);
         }
       } catch (error) {
         console.error(`Failed to load sub-issues for #${issueNumber}:`, error);
+        if (options?.propagateError) {
+          throw error;
+        }
       }
     },
-    [owner, repo, rebuildTree]
+    [owner, repo, rebuildTree, issues]
   );
 
   // sub_issues_summary がある Issue の子を自動ロード
   useEffect(() => {
     for (const issue of issues) {
       if (issue.sub_issues_summary && issue.sub_issues_summary.total > 0) {
-        loadSubIssues(issue.number);
+        loadSubIssues(issue.number, issues);
       }
     }
   }, [issues, loadSubIssues]);
@@ -120,6 +130,33 @@ export function OutlinerRoot({ owner, repo }: Props) {
       mutateIssues();
     }
   }, [create, mutateIssues]);
+
+  /** Issue / Sub-issue を手動更新 */
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+
+    try {
+      childrenMapRef.current.clear();
+      loadedParentsRef.current.clear();
+
+      const latestIssues = (await mutateIssues()) ?? [];
+      rebuildTree(latestIssues);
+
+      for (const issue of latestIssues) {
+        if (issue.sub_issues_summary && issue.sub_issues_summary.total > 0) {
+          await loadSubIssues(issue.number, latestIssues, { propagateError: true });
+        }
+      }
+
+      rebuildTree(latestIssues);
+      toast.success("最新状態に更新しました");
+    } catch (error) {
+      console.error("Failed to refresh issues:", error);
+      toast.error("更新に失敗しました");
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [mutateIssues, rebuildTree, loadSubIssues]);
 
   if (isLoading) {
     return (
@@ -155,6 +192,16 @@ export function OutlinerRoot({ owner, repo }: Props) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="gap-1 text-xs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            更新
+          </Button>
           <Button
             variant="ghost"
             size="sm"

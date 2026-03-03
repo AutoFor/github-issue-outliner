@@ -4,6 +4,8 @@ import useSWR from "swr";  // データフェッチ + キャッシュ
 import { getSubIssues } from "@/actions/hierarchy-actions";  // Server Action
 import type { GitHubIssue } from "@/lib/github/types";  // 型
 
+const EMPTY_SUB_ISSUES: GitHubIssue[] = [];
+
 /** 子 Issue 一覧を SWR で取得するフック */
 export function useSubIssues(
   owner: string,
@@ -22,7 +24,7 @@ export function useSubIssues(
   );
 
   return {
-    subIssues: data ?? [],
+    subIssues: data ?? EMPTY_SUB_ISSUES,
     error,
     isLoading,
     mutate,

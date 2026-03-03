@@ -1,7 +1,13 @@
 import NextAuth from "next-auth";  // Auth.js v5 をインポート
 import GitHub from "next-auth/providers/github";  // GitHub OAuth プロバイダー
 
+const authSecret =
+  process.env.AUTH_SECRET ??
+  process.env.NEXTAUTH_SECRET ??
+  (process.env.NODE_ENV === "development" ? "local-dev-insecure-auth-secret" : undefined);
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: authSecret,
   providers: [
     GitHub({
       authorization: {

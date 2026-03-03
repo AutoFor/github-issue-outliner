@@ -4,6 +4,8 @@ import useSWR from "swr";  // データフェッチ + キャッシュ
 import { getIssues } from "@/actions/issue-actions";  // Server Action
 import type { GitHubIssue } from "@/lib/github/types";  // 型
 
+const EMPTY_ISSUES: GitHubIssue[] = [];
+
 /** Issue 一覧を SWR で取得するフック */
 export function useIssues(owner: string, repo: string) {
   const { data, error, isLoading, mutate } = useSWR<GitHubIssue[]>(
@@ -16,7 +18,7 @@ export function useIssues(owner: string, repo: string) {
   );
 
   return {
-    issues: data ?? [],  // デフォルト空配列
+    issues: data ?? EMPTY_ISSUES,  // デフォルト空配列（安定参照）
     error,
     isLoading,
     mutate,  // 手動再検証用

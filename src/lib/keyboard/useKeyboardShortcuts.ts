@@ -16,6 +16,7 @@ interface Params {
   toggleState: (number: number, state: "open" | "closed") => Promise<void>;  // 状態切り替え
   moveToParent: (
     id: IssueId,
+    issueNumber: number,
     oldParent: number | null,
     newParent: number | null,
     afterId?: IssueId,
@@ -109,7 +110,12 @@ export function useKeyboardShortcuts({
           const oldParentNumber = getParentIssueNumber(flatItems, target.oldParentId);
           const newParent = flatItems.find((i) => i.issue.id === target.newParentId);
           if (newParent) {
-            moveToParent(focusedId, oldParentNumber, newParent.issue.number);
+            moveToParent(
+              focusedId,
+              focusedItem.issue.number,
+              oldParentNumber,
+              newParent.issue.number
+            );
           }
         }
         return;
@@ -124,7 +130,12 @@ export function useKeyboardShortcuts({
           const oldParent = flatItems.find((i) => i.issue.id === target.oldParentId);
           const newParentNumber = getParentIssueNumber(flatItems, target.newParentId);
           if (oldParent) {
-            moveToParent(focusedId, oldParent.issue.number, newParentNumber);
+            moveToParent(
+              focusedId,
+              focusedItem.issue.number,
+              oldParent.issue.number,
+              newParentNumber
+            );
           }
         }
         return;
@@ -166,6 +177,7 @@ export function useKeyboardShortcuts({
             const prevOfTarget = getSwapTarget(flatItems, target.issue.id, "up");
             moveToParent(
               focusedId,
+              focusedItem.issue.number,
               parentNumber,
               parentNumber,
               prevOfTarget?.issue.id,
@@ -184,6 +196,7 @@ export function useKeyboardShortcuts({
           if (parentNumber !== null) {
             moveToParent(
               focusedId,
+              focusedItem.issue.number,
               parentNumber,
               parentNumber,
               target.issue.id

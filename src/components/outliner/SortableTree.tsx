@@ -31,6 +31,7 @@ interface Props {
   flatItems: FlattenedItem[];  // フラットアイテム
   moveToParent: (
     id: IssueId,
+    issueNumber: number,
     oldParent: number | null,
     newParent: number | null,
     afterId?: IssueId,
@@ -136,6 +137,7 @@ export function SortableTree({
         const overItem = flatItems.find((i) => i.issue.id === over.id);
         await moveToParent(
           active.id as IssueId,
+          activeItem.issue.number,
           oldParentNumber,
           newParentNumber ?? (projection.position === "child" ? overItem?.issue.number ?? null : null),
           overItem?.issue.id

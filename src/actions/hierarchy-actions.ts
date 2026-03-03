@@ -6,6 +6,7 @@ import {
   removeSubIssue,
   fetchSubIssues,
   reprioritizeSubIssue,
+  fetchParentIssueNumber,
 } from "@/lib/github/sub-issues";  // Sub-Issue 操作
 import type { GitHubIssue, IssueId } from "@/lib/github/types";  // 型
 
@@ -66,6 +67,7 @@ export async function reorderSubIssue(
 export async function moveIssueToParent(
   owner: string,
   repo: string,
+  issueNumber: number,
   issueId: IssueId,
   oldParentIssueNumber: number | null,
   newParentIssueNumber: number | null,
@@ -73,14 +75,33 @@ export async function moveIssueToParent(
   beforeId?: IssueId
 ): Promise<void> {
   const octokit = await createOctokit();
+  const actualParentNumber = await fetchParentIssueNumber(
+    octokit,
+    owner,
+    repo,
+    issueNumber
+  );
 
-  // 旧親から削除
-  if (oldParentIssueNumber !== null) {
-    await removeSubIssue(octokit, owner, repo, oldParentIssueNumber, issueId);
+  // 旧親から削除（実親を優先。取得不可時のみ oldParent をフォールバック）
+  const parentToDetach =
+    actualParentNumber ?? oldParentIssueNumber;
+
+  if (
+    parentToDetach !== null &&
+    (newParentIssueNumber === null || parentToDetach !== newParentIssueNumber)
+  ) {
+    try {
+      await removeSubIssue(octokit, owner, repo, parentToDetach, issueId);
+    } catch (error) {
+      // 連続操作の圧縮時は既に外れている場合があるため 404 は許容
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const status = (error as any)?.status;
+      if (status !== 404) throw error;
+    }
   }
 
   // 新親に追加
-  if (newParentIssueNumber !== null) {
+  if (newParentIssueNumber !== null && actualParentNumber !== newParentIssueNumber) {
     await addSubIssue(octokit, owner, repo, newParentIssueNumber, issueId);
 
     // 位置指定がある場合は並び替え

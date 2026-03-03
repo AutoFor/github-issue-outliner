@@ -1,7 +1,17 @@
+import { redirect } from "next/navigation";  // リダイレクト
 import { getRepos } from "@/actions/issue-actions";  // リポジトリ取得
 import { RepoList } from "@/components/layout/RepoList";  // リポジトリ一覧コンポーネント
+import { isDevMode } from "@/lib/auth-mode";  // Dev モード判定
 
 export default async function ReposPage() {
+  if (!isDevMode()) {
+    const { auth } = await import("@/auth");
+    const session = await auth();
+    if (!session?.accessToken) {
+      redirect("/login");
+    }
+  }
+
   const repos = await getRepos();  // Server Action でリポジトリ取得
 
   return (

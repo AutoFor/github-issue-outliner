@@ -1,6 +1,32 @@
 import { Octokit } from "@octokit/rest";  // Octokit 型
 import type { GitHubIssue, IssueId } from "./types";  // 型インポート
 
+/** Sub-Issues API: 子 Issue の親 Issue 番号を取得 */
+export async function fetchParentIssueNumber(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  issueNumber: number
+): Promise<number | null> {
+  try {
+    const { data } = await octokit.request(
+      "GET /repos/{owner}/{repo}/issues/{issue_number}/parent",
+      {
+        owner,
+        repo,
+        issue_number: issueNumber,
+      }
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data as any)?.number ?? null;
+  } catch (error) {
+    // 親がいない場合は 404
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((error as any)?.status === 404) return null;
+    throw error;
+  }
+}
+
 /**
  * Sub-Issues API: 子 Issue 一覧を取得
  * GitHub Sub-Issues API は Issue の DB ID を使用する（number ではない）
@@ -92,7 +118,7 @@ export async function removeSubIssue(
   childIssueId: IssueId
 ): Promise<void> {
   await octokit.request(
-    "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
+    "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issue",
     {
       owner,
       repo,
